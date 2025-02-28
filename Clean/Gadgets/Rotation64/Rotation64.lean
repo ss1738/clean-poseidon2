@@ -1,9 +1,13 @@
 import Clean.Gadgets.Addition8.Addition8FullCarry
 import Clean.Types.U64
+import Clean.Gadgets.Rotation64.Theorems
+import Clean.Gadgets.Rotation64.Rotation64Bytes
 
 namespace Gadgets.Rotation64
 variable {p : ℕ} [Fact p.Prime]
 variable [p_large_enough: Fact (p > 512)]
+
+open Gadgets.Rotation64.Theorems (rot64)
 
 structure InputStruct (F : Type) where
   x: U64 F
@@ -59,32 +63,47 @@ instance : ProvableType (F p) (Outputs p) where
     let ⟨ [z0, z1, z2, z3, z4, z5, z6, z7], _ ⟩ := v
     ⟨ ⟨ z0, z1, z2, z3, z4, z5, z6, z7 ⟩ ⟩
 
-def rot64_bytes (offset : Fin 8) (input : (Inputs p).var) : Circuit (F p) (Outputs p).var := do
-  let ⟨x0, x1, x2, x3 , x4, x5, x6, x7⟩ := input
-  let offset := offset.val
+/--
+  Rotate the 64-bit integer by increments of 8 positions
+  This gadget does not introduce constraints
+-/
+def rot64_circuit (offset : Fin 64) (input : (Inputs p).var) : Circuit (F p) (Outputs p).var := do
+  let byte_offset := offset / 8
+  let bit_offset : ℕ := (offset % 8).val
 
-  if offset = 0 then
-    return ⟨ x0, x1, x2, x3, x4, x5, x6, x7 ⟩
-  else if offset = 1 then
-    return ⟨ x1, x2, x3, x4, x5, x6, x7, x0 ⟩
+  let x := input.x
 
-  return ⟨ x2, x3, x4, x5, x6, x7, x0, x1 ⟩
+  -- apply the byte rotation
+  let ⟨out⟩ ← subcircuit (Gadgets.Rotation64Bytes.circuit byte_offset) { x }
+
+  -- apply the bit rotation
+  let ⟨x0, x1, x2, x3, x4, x5, x6, x7⟩ := out
+  let ⟨z0, z1, z2, z3, z4, z5, z6, z7⟩ ← U64.witness (fun env => U64.mk 0 0 0 0 0 0 0 0)
+
+  -- z0 = x0 / 2^offset + x1 * 2^(8 - offset)
+  let bit_offset_fp : F p := 2 ^ bit_offset
+  let bit_offset_fp' : F p := 2 ^ (8 - bit_offset)
+  assert_zero ((z0 - x1 * bit_offset_fp) * bit_offset_fp' - x0)
+  assert_zero ((z1 - x2 * bit_offset_fp) * bit_offset_fp' - x1)
+  assert_zero ((z2 - x3 * bit_offset_fp) * bit_offset_fp' - x2)
+  assert_zero ((z3 - x4 * bit_offset_fp) * bit_offset_fp' - x3)
+  assert_zero ((z4 - x5 * bit_offset_fp) * bit_offset_fp' - x4)
+  assert_zero ((z5 - x6 * bit_offset_fp) * bit_offset_fp' - x5)
+  assert_zero ((z6 - x7 * bit_offset_fp) * bit_offset_fp' - x6)
+  assert_zero ((z7 - x0 * bit_offset_fp) * bit_offset_fp' - x7)
+
+  return { z := ⟨ z0, z1, z2, z3, z4, z5, z6, z7 ⟩ }
 
 def assumptions (input : (Inputs p).value) := input.x.is_normalized
 
-def rot64 (x : ℕ) (offset : ℕ) : ℕ :=
-  let offset := offset % 64
-  let low := x % (2^offset)
-  let high := x / (2^offset)
-  low * (2^(64 - offset)) + high
 
-def spec (offset : Fin 8) (input : (Inputs p).value) (out: (Outputs p).value) :=
+
+def spec (offset : Fin 64) (input : (Inputs p).value) (out: (Outputs p).value) :=
   let ⟨x⟩ := input
   let ⟨y⟩ := out
-  y.value = rot64 x.value (offset.val * 8)
+  y.value = rot64 x.value offset.val
 
-
-theorem soundness (off : Fin 8) : Soundness (F p) (Inputs p) (Outputs p) (rot64_bytes off) assumptions (spec off) := by
+theorem soundness (off : Fin 8) : Soundness (F p) (Inputs p) (Outputs p) (rot64_circuit off) assumptions (spec off) := by
   rintro i0 env ⟨ x0_var, x1_var, x2_var, x3_var, x4_var, x5_var, x6_var, x7_var ⟩ ⟨ x0, x1, x2, x3, x4, x5, x6, x7 ⟩ h_inputs as h
 
   have h_x0 : x0_var.eval env = x0 := by injections h_inputs
@@ -98,24 +117,10 @@ theorem soundness (off : Fin 8) : Soundness (F p) (Inputs p) (Outputs p) (rot64_
   clear h_inputs
 
   dsimp only [assumptions, U64.is_normalized] at as
-  fin_cases off
-  · simp [circuit_norm, rot64_bytes, spec, circuit_norm, Circuit.output, pure]
-    rw [h_x0, h_x1, h_x2, h_x3, h_x4, h_x5, h_x6, h_x7]
-    simp [U64.value, rot64, Nat.mod_one]
-  · simp [circuit_norm, rot64_bytes, spec, circuit_norm, Circuit.output, pure]
-    rw [h_x0, h_x1, h_x2, h_x3, h_x4, h_x5, h_x6, h_x7]
-    simp only [U64.value, rot64]
-    rw [
-      show (8%64) = 8 by norm_num,
-      show (64 - 8) = 56 by norm_num,
-    ]
-    sorry
-
-
   sorry
 
 def circuit (off : Fin 8) : FormalCircuit (F p) (Inputs p) (Outputs p) where
-  main := rot64_bytes off
+  main := rot64_circuit off
   assumptions := assumptions
   spec := spec off
   soundness := soundness off

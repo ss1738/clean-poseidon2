@@ -524,11 +524,11 @@ theorem subcircuitsConsistent (n : ℕ) (input : Var (fields n) (F p)) (offset :
       apply Circuit.subcircuitsConsistent_bind
       ·
         let input1 : Var (fields n1) (F p) :=
-          ⟨input.toArray.extract 0 n1, by simp; unfold n1; omega⟩
+          ⟨input.toArray.extract 0 n1, by simp only [Array.size_extract, Vector.size_toArray]; unfold n1; omega⟩
         apply IH n1 h_n1_lt input1
       · apply Circuit.subcircuitsConsistent_bind
         · let input2 : Var (fields n2) (F p) :=
-            ⟨input.toArray.extract n1 (m + 3), by simp; unfold n2; rfl⟩
+            ⟨input.toArray.extract n1 (m + 3), by simp only [Array.size_extract, Vector.size_toArray]; unfold n2; omega⟩
           apply IH n2 h_n2_lt input2
         · apply AND.circuit.subcircuitsConsistent
 
@@ -764,9 +764,8 @@ lemma soundness_zero {p : ℕ} [Fact p.Prime]
     have : input.toList = [] := by
       cases input using Vector.casesOn
       rename_i l h
-      simp at h
-      subst h
-      rfl
+      simp only [Array.size_eq_length_toList, List.length_eq_zero_iff] at h
+      exact h
     rw [this]
     simp only [List.map_nil, List.foldl_nil, ZMod.val_one]
   · right
@@ -1026,19 +1025,19 @@ theorem completeness {p : ℕ} [Fact p.Prime] (n : ℕ) :
       simp [main]
       let n1 := (m + 3) / 2
       let n2 := (m + 3) - n1
-      let input_var1 : Var (fields n1) (F p) := ⟨input_var.toArray.extract 0 n1, by simp; unfold n1; omega⟩
-      let input_var2 : Var (fields n2) (F p) := ⟨input_var.toArray.extract n1 (m + 3), by simp; unfold n2; rfl⟩
+      let input_var1 : Var (fields n1) (F p) := ⟨input_var.toArray.extract 0 n1, by simp only [Array.size_extract, Vector.size_toArray]; unfold n1; omega⟩
+      let input_var2 : Var (fields n2) (F p) := ⟨input_var.toArray.extract n1 (m + 3), by simp only [Array.size_extract, Vector.size_toArray]; unfold n2; omega⟩
 
-      have h_eval1 : eval env input_var1 = ⟨input.toArray.extract 0 n1, by simp; unfold n1; omega⟩ := by
+      have h_eval1 : eval env input_var1 = ⟨input.toArray.extract 0 n1, by simp only [Array.size_extract, Vector.size_toArray]; unfold n1; omega⟩ := by
         apply eval_toArray_extract_eq 0 n1 h_env
         · omega
         · omega
-      have h_eval2 : eval env input_var2 = ⟨input.toArray.extract n1 (m + 3), by simp; unfold n2; rfl⟩ := by
+      have h_eval2 : eval env input_var2 = ⟨input.toArray.extract n1 (m + 3), by simp only [Array.size_extract, Vector.size_toArray]; unfold n2; omega⟩ := by
         apply eval_toArray_extract_eq n1 (m + 3) h_env
         · omega
         · omega
-      let input1 : fields n1 (F p) := ⟨input.toArray.extract 0 n1, by simp; unfold n1; omega⟩
-      let input2 : fields n2 (F p) := ⟨input.toArray.extract n1 (m + 3), by simp; unfold n2; rfl⟩
+      let input1 : fields n1 (F p) := ⟨input.toArray.extract 0 n1, by simp only [Array.size_extract, Vector.size_toArray]; unfold n1; omega⟩
+      let input2 : fields n2 (F p) := ⟨input.toArray.extract n1 (m + 3), by simp only [Array.size_extract, Vector.size_toArray]; unfold n2; omega⟩
       have h_assumptions1 : Assumptions n1 input1 := by
         intro i
         rw [extract_preserves_element input i (by unfold n1; omega)]

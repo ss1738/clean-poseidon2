@@ -651,6 +651,30 @@ def circuit (round : Fin 57) : FormalCircuit F (fields 3) (fields 3) where
 
 end PartialRoundOpt_t3
 
+/-- Induction lemma for the t=3 partial-round chain: if each step of a state sequence
+performs one optimized partial round, the whole sequence equals the spec's fold. -/
+private lemma partialRoundsOpt_t3_induction
+    (nRounds cOffset sRound : ℕ)
+    (hr : sRound + nRounds ≤ 57)
+    (states : ℕ → Vector F 3)
+    (h_round : ∀ (i : ℕ) (_ : i < nRounds),
+        states (i + 1) = Specs.PoseidonOptimized.partialRoundOpt C_t3 S_t3
+          (cOffset + i) (sRound + i) (states i) (by omega)) :
+    states nRounds = Specs.PoseidonOptimized.partialRoundsOpt C_t3 S_t3
+      nRounds cOffset sRound (states 0) hr := by
+  induction nRounds generalizing cOffset sRound states with
+  | zero =>
+      simp [Specs.PoseidonOptimized.partialRoundsOpt]
+  | succ k ih =>
+      simp only [Specs.PoseidonOptimized.partialRoundsOpt]
+      have h0 := h_round 0 (by omega)
+      simp only [Nat.add_zero] at h0
+      rw [← h0]
+      apply ih (cOffset + 1) (sRound + 1) (by omega) (fun j => states (j + 1))
+      intro i hi
+      have hi' := h_round (i + 1) (by omega)
+      convert hi' using 2 <;> omega
+
 end Poseidon2
 
 end Circomlib.Poseidon

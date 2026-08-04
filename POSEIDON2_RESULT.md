@@ -1,9 +1,11 @@
-# Machine-checked soundness for circomlib Poseidon(2)
+# Machine-checked soundness for circomlib Poseidon(2) and Poseidon(3)
 
-**Result.** The circomlib `Poseidon(2)` circuit (two field inputs, state width t=3) is proved
-sound and complete in Lean 4 against its optimized reference specification, in the
-[cLean](https://github.com/Verified-zkEVM/clean) framework. The proof carries no
-Poseidon-specific axioms.
+**Result.** The circomlib `Poseidon(2)` (two inputs, t=3) and `Poseidon(3)` (three inputs,
+t=4) circuits are proved **sound and complete** in Lean 4 against their optimized reference
+specifications, in the [cLean](https://github.com/Verified-zkEVM/clean) framework. Neither
+proof carries a Poseidon-specific axiom. Between them these are the arities that dominate
+real Circom usage: arity 2 for Merkle nodes and nullifiers, arity 3 for commitments and
+tuples.
 
 **Why this specific circuit.** Veridise's formal verification of Semaphore v3
 ([audit report](https://semaphore.pse.dev/Semaphore_3.0.0_Audit.pdf), January 2023, Section 5)
@@ -33,6 +35,19 @@ In `Clean/Circomlib/Poseidon.lean`, namespace `Circomlib.Poseidon.Poseidon2`:
 | `ApplyPartialRoundsOpt_t3` | all **57** partial rounds | soundness + completeness |
 | `ApplyFullRounds_t3` | 3-round full-round fold | soundness + completeness |
 | **`Poseidon2.circuit`** | **the whole circomlib `Poseidon(2)`** | **soundness + completeness** |
+
+The same development is repeated one arity up in namespace `Circomlib.Poseidon.Poseidon3`
+(state width t=4, 56 partial rounds, 7 sparse constants per round, 576 witnesses): every
+component proved, plus top-level soundness and completeness for **`Poseidon3.circuit`**, and
+validation against circomlibjs's `poseidon([1,0,0])`. Proving the second arity took a small
+fraction of the effort of the first, which is the evidence that this is a reusable method for
+the family rather than a one-off.
+
+| Component (t=4) | Status |
+|---|---|
+| `ark_t4_eq`, `mix_matrix_t4_eq`, `InitialArk`, `FullRound_t4`, `PartialRoundOpt_t4` | proved |
+| `partialRoundsOpt_t4_induction`, both folds | proved |
+| **`Poseidon3.circuit`** | **soundness + completeness** |
 
 The top-level statement: for any environment satisfying the circuit's constraints, the output
 equals `Specs.PoseidonOptimized.poseidon2Opt` of the inputs — i.e. the constraint system admits

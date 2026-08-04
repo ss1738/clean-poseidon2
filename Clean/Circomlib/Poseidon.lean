@@ -15,8 +15,8 @@ https://github.com/iden3/circomlib/blob/master/circuits/poseidon.circom
 
 namespace Circomlib.Poseidon
 
-open Specs.Poseidon (F BN254_PRIME C_t2 M_t2 C_t3 M_t3)
-open Specs.PoseidonOptimized (P_t2 S_t2 P_t3 S_t3)
+open Specs.Poseidon (F BN254_PRIME C_t2 M_t2 C_t3 M_t3 C_t4 M_t4)
+open Specs.PoseidonOptimized (P_t2 S_t2 P_t3 S_t3 P_t4 S_t4)
 
 -- BN254 prime facts (BN254_PRIME is a well-known prime, proofs omitted for performance)
 instance : Fact (Nat.Prime BN254_PRIME) := ⟨by sorry⟩
@@ -843,5 +843,66 @@ example : Specs.PoseidonOptimized.poseidon2Opt #v[(1 : F), 2]
   native_decide
 
 end Poseidon2
+
+
+/-
+============================================================================
+POSEIDON3 (3 inputs, t=4)
+============================================================================
+State width 4, nRoundsF = 8, nRoundsP = 56. Same architecture as Poseidon2,
+one arity up: constants C_t4 (88), sparse matrices S_t4 (7 per round).
+-/
+namespace Poseidon3
+
+private lemma ark_t4_eq (C : Vector ℕ 88) (offset : ℕ) (ho : offset + 3 < 88) (state : Vector F 4) :
+    Specs.Poseidon.ark C offset state =
+      #v[state[0] + C[offset], state[1] + C[offset + 1],
+         state[2] + C[offset + 2], state[3] + C[offset + 3]] := by
+  simp [Specs.Poseidon.ark, ho, show offset + 2 < 88 by omega, show offset + 1 < 88 by omega,
+    show offset < 88 by omega, Array.ofFn_succ]
+
+private lemma ark_zero_t4_eq (state : Vector F 4) :
+    Specs.Poseidon.ark (.replicate 88 0) 0 state = state := by
+  rw [ark_t4_eq _ _ (by norm_num)]; simp; grind
+
+private lemma mix_matrix_t4_eq (M : Vector (Vector ℕ 4) 4) (state : Vector F 4) :
+    Specs.Poseidon.mix M state =
+      #v[M[0][0] * state[0] + M[1][0] * state[1] + M[2][0] * state[2] + M[3][0] * state[3],
+         M[0][1] * state[0] + M[1][1] * state[1] + M[2][1] * state[2] + M[3][1] * state[3],
+         M[0][2] * state[0] + M[1][2] * state[1] + M[2][2] * state[2] + M[3][2] * state[3],
+         M[0][3] * state[0] + M[1][3] * state[1] + M[2][3] * state[2] + M[3][3] * state[3]] := by
+  simp [Specs.Poseidon.mix, List.range_succ, Array.ofFn_succ]
+
+namespace InitialArk
+
+def circuit : FormalCircuit F (fields 3) (fields 4) where
+  main input := do
+    let state := #v[(.const 0 : Expression F), input[0], input[1], input[2]]
+    let out0 <== state[0] + Expression.const (C_t4[0] : F)
+    let out1 <== state[1] + Expression.const (C_t4[1] : F)
+    let out2 <== state[2] + Expression.const (C_t4[2] : F)
+    let out3 <== state[3] + Expression.const (C_t4[3] : F)
+    return #v[out0, out1, out2, out3]
+
+  Spec (input : Vector F 3) (output : Vector F 4) :=
+    output = Specs.Poseidon.ark C_t4 0 #v[0, input[0], input[1], input[2]]
+
+  soundness := by
+    circuit_proof_start
+    rw [ark_t4_eq C_t4 0 (by omega)]
+    obtain ⟨h0, h1, h2, h3⟩ := h_holds
+    have h_in0 : Expression.eval env input_var[0] = input[0] := by
+      simpa using congrArg (fun v => v[0]) h_input
+    have h_in1 : Expression.eval env input_var[1] = input[1] := by
+      simpa using congrArg (fun v => v[1]) h_input
+    have h_in2 : Expression.eval env input_var[2] = input[2] := by
+      simpa using congrArg (fun v => v[2]) h_input
+    simp_all
+  completeness := by
+    circuit_proof_all
+
+end InitialArk
+
+end Poseidon3
 
 end Circomlib.Poseidon

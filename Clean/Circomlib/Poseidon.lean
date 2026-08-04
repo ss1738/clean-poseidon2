@@ -1179,6 +1179,36 @@ theorem soundness : Soundness F (Input := fields 3) (Output := field)
     Specs.PoseidonOptimized.poseidon3Permutation input by simp [← this]
   simp_all [Specs.PoseidonOptimized.poseidon3Permutation]
 
+
+set_option maxHeartbeats 4000000 in
+theorem completeness : Completeness F (Input := fields 3) (Output := field) main (fun _ => True) := by
+  circuit_proof_start [InitialArk.circuit, ApplyFullRounds_t4.circuit, FullRound_t4.circuit,
+    ApplyPartialRoundsOpt_t4.circuit, ApplyPartialRoundsOpt_t4.Assumptions]
+
+def circuit : FormalCircuit F (fields 3) field where
+  main
+  elaborated
+  Spec
+  soundness
+  completeness
+
+/-
+----------------------------------------------------------------------------
+VALIDATION (t=4)
+----------------------------------------------------------------------------
+-/
+
+example : Specs.PoseidonOptimized.poseidon3Opt #v[(1 : F), 0, 0]
+    = Specs.Poseidon.poseidon3 #v[(1 : F), 0, 0] := by native_decide
+
+example : Specs.PoseidonOptimized.poseidon3Opt #v[(1 : F), 2, 3]
+    = Specs.Poseidon.poseidon3 #v[(1 : F), 2, 3] := by native_decide
+
+-- circomlibjs test vector: poseidon([1, 0, 0]).
+example : Specs.PoseidonOptimized.poseidon3Opt #v[(1 : F), 0, 0]
+    = (16319005924338521988144249782199320915969277491928916027259324394544057385749 : F) := by
+  native_decide
+
 end Poseidon3
 
 end Circomlib.Poseidon

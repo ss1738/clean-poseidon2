@@ -804,6 +804,18 @@ theorem soundness : Soundness F (Input := fields 2) (Output := field)
     Specs.PoseidonOptimized.poseidon2Permutation input by simp [← this]
   simp_all [Specs.PoseidonOptimized.poseidon2Permutation]
 
+
+theorem completeness : Completeness F (Input := fields 2) (Output := field) main (fun _ => True) := by
+  circuit_proof_start [InitialArk.circuit, ApplyFullRounds_t3.circuit, FullRound_t3.circuit,
+    ApplyPartialRoundsOpt_t3.circuit, ApplyPartialRoundsOpt_t3.Assumptions]
+
+def circuit : FormalCircuit F (fields 2) field where
+  main
+  elaborated
+  Spec
+  soundness
+  completeness
+
 end Poseidon2
 
 end Circomlib.Poseidon

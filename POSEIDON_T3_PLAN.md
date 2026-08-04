@@ -39,6 +39,20 @@ certificate. Certificate computed and checked numerically:
 - Remaining work: each factor needs its own primality proof; the largest,
   13818364434197438864469338081, needs a nested certificate.
 
+## Progress (2026-08-04)
+Done and building (`lake build Clean.Circomlib.Poseidon`, 1736 jobs, no errors):
+- `ark_t3_eq`, `mix_matrix_t3_eq` — foundational rewriting lemmas
+- `InitialArk` — state [0, in0, in1] + C[0..2], soundness + completeness
+- `FullRound_t3` — 3x S-box -> ARK -> MIX(M), soundness + completeness
+- `PartialRoundOpt_t3` — S-box on element 0 -> ARK -> sparse MixS, soundness + completeness
+- `partialRoundsOpt_t3_induction` — the chain lemma for the 57-round fold
+- `ApplyPartialRoundsOpt_t3` — all 57 partial rounds folded, sound via the induction lemma
+
+Remaining: ApplyFullRounds_t3 (fold of 3 full rounds, twice), the P_t3 transition round
+(reuses FullRound_t3 with matrix P_t3), MixLast (final S-box + mix with no ARK), and the
+top-level `Poseidon2` assembling all of it against `poseidon2Opt`, then the bridge to
+`Specs.Poseidon.poseidon2` and the circomlibjs test vector.
+
 ## Main work plan
 1. Mirror the t=2 chain at t=3. Order: Sigma (reuse) → Ark_t3 → Mix_t3 → MixS_t3 →
    MixLast_t3 → FullRounds_t3 → PartialRounds_t3 (the induction lemma is the hard part;

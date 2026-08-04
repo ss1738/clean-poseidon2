@@ -675,6 +675,66 @@ private lemma partialRoundsOpt_t3_induction
       have hi' := h_round (i + 1) (by omega)
       convert hi' using 2 <;> omega
 
+namespace ApplyPartialRoundsOpt_t3
+
+def main (state : Vector (Expression F) 3)
+    : Circuit F (Vector (Expression F) 3) :=
+  Circuit.foldl (.finRange 57) state
+    (fun st round => PartialRoundOpt_t3.circuit round st)
+    (by simp only [circuit_norm, PartialRoundOpt_t3.circuit,
+      PartialRoundOpt_t3.elaborated])
+    ⟨ 7, by simp only [circuit_norm, PartialRoundOpt_t3.circuit] ⟩
+
+def Spec (input output : Vector F 3) : Prop :=
+  output = Specs.PoseidonOptimized.partialRoundsOpt C_t3 S_t3 57 15 0 input (by omega)
+
+def Assumptions (_ : Vector F 3) : Prop := True
+
+/-- Each partial round allocates 7 witnesses (3 for the S-box, 1 for the ARK result,
+3 for the MixS outputs); the round outputs sit at offsets +4, +5, +6. -/
+def envState (env : Environment F) (input : Vector F 3)
+    (n k : ℕ) : Vector F 3 :=
+  if k = 0 then input
+  else #v[env.get (n + (k - 1) * 7 + 4), env.get (n + (k - 1) * 7 + 5),
+          env.get (n + (k - 1) * 7 + 6)]
+
+instance elaborated : ElaboratedCircuit F (fields 3) (fields 3) main := by
+  elaborate_circuit
+
+theorem soundness : Soundness F (Input := fields 3) (Output := fields 3) main Assumptions Spec := by
+  circuit_proof_start [PartialRoundOpt_t3.circuit, PartialRoundOpt_t3.elaborated,
+    PartialRoundOpt_t3.Spec]
+  obtain ⟨h0, h_step⟩ := h_holds
+  have h_round : ∀ (k : ℕ) (hk : k < 57),
+      envState env input i₀ (k + 1) =
+        Specs.PoseidonOptimized.partialRoundOpt C_t3 S_t3 (15 + k) k
+          (envState env input i₀ k) hk := by
+    intro k hk
+    rcases k with _ | j
+    · exact Vector.toArray_inj.mp (by simpa [envState] using h0)
+    · have hj := h_step j (by omega)
+      exact Vector.toArray_inj.mp (by simpa +arith [envState] using hj)
+  have h_final := partialRoundsOpt_t3_induction 57 15 0 (by omega)
+    (fun k => envState env input i₀ k)
+    (by
+      intro i hi
+      simp only [zero_add]
+      exact h_round i hi)
+  exact congr_arg Vector.toArray h_final
+
+theorem completeness : Completeness F (Input := fields 3) (Output := fields 3) main Assumptions := by
+  circuit_proof_start [PartialRoundOpt_t3.circuit]
+
+def circuit : FormalCircuit F (fields 3) (fields 3) where
+  main
+  elaborated
+  Assumptions
+  Spec
+  soundness
+  completeness := by simp [completeness]
+
+end ApplyPartialRoundsOpt_t3
+
 end Poseidon2
 
 end Circomlib.Poseidon

@@ -207,7 +207,7 @@ OPTIMIZED POSEIDON HASH (t=3, 2 inputs)
 ============================================================================
 -/
 
-def poseidon2Opt (inputs : Vector F 2) : F :=
+def poseidon2Permutation (inputs : Vector F 2) : Vector F 3 :=
   let t := 3
   let nRoundsF := 8
   let nP := 57
@@ -236,6 +236,11 @@ def poseidon2Opt (inputs : Vector F 2) : F :=
   -- 6. Final round: SBOX → MIX(M) (no ARK)
   let state := state |> sboxFull |> mix M_t3
 
+  state
+
+/-- `poseidon2Opt` is the first element of the optimized t=3 permutation. -/
+def poseidon2Opt (inputs : Vector F 2) : F :=
+  let state := poseidon2Permutation inputs
   -- Output first element
   state[0]
 

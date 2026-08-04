@@ -816,6 +816,32 @@ def circuit : FormalCircuit F (fields 2) field where
   soundness
   completeness
 
+
+/-
+----------------------------------------------------------------------------
+VALIDATION
+----------------------------------------------------------------------------
+The circuit's Spec is stated against the optimized permutation `poseidon2Opt`
+(the structure circomlib actually implements). These checks tie that spec back to
+the unoptimized reference `Specs.Poseidon.poseidon2` and to circomlibjs's published
+test vector, so the proved soundness statement is anchored to the real hash.
+-/
+
+-- The optimized and reference t=3 permutations agree.
+example : Specs.PoseidonOptimized.poseidon2Opt #v[(1 : F), 2]
+    = Specs.Poseidon.poseidon2 #v[(1 : F), 2] := by native_decide
+
+example : Specs.PoseidonOptimized.poseidon2Opt #v[(0 : F), 0]
+    = Specs.Poseidon.poseidon2 #v[(0 : F), 0] := by native_decide
+
+example : Specs.PoseidonOptimized.poseidon2Opt #v[(123 : F), 456]
+    = Specs.Poseidon.poseidon2 #v[(123 : F), 456] := by native_decide
+
+-- circomlibjs test vector: poseidon([1, 2]).
+example : Specs.PoseidonOptimized.poseidon2Opt #v[(1 : F), 2]
+    = (0x115cc0f5e7d690413df64c6b9662e9cf2a3617f2743245519e19607a4417189a : F) := by
+  native_decide
+
 end Poseidon2
 
 end Circomlib.Poseidon

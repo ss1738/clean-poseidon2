@@ -288,7 +288,7 @@ def partialRoundsOpt_t4 (C : Vector ℕ 88) (S : Vector ℕ 392)
     have hr'' : sRound + 1 + r ≤ 56 := by omega
     partialRoundsOpt_t4 C S r (cOffset + 1) (sRound + 1) state' hr''
 
-def poseidon3Opt (inputs : Vector F 3) : F :=
+def poseidon3Permutation (inputs : Vector F 3) : Vector F 4 :=
   let t := 4
   let nRoundsF := 8
   let nP := 56
@@ -317,6 +317,11 @@ def poseidon3Opt (inputs : Vector F 3) : F :=
   -- 6. Final round: SBOX → MIX(M) (no ARK)
   let state := state |> sboxFull |> mix M_t4
 
+  state
+
+/-- `poseidon3Opt` is the first element of the optimized t=4 permutation. -/
+def poseidon3Opt (inputs : Vector F 3) : F :=
+  let state := poseidon3Permutation inputs
   -- Output first element
   state[0]
 

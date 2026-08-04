@@ -1145,6 +1145,40 @@ def circuit (offset : ℕ) (h : offset + 8 < 85) :
 
 end ApplyFullRounds_t4
 
+
+/-- Top-level circomlib `Poseidon(3)`: 3 field inputs, 1 field output. -/
+def main (input : Vector (Expression F) 3) : Circuit F (Expression F) := do
+  let state ← InitialArk.circuit input
+  let state ← ApplyFullRounds_t4.circuit 4 (by omega) state
+  let state ← FullRound_t4.circuit C_t4 P_t4 ⟨16, by omega⟩ state
+  let state ← ApplyPartialRoundsOpt_t4.circuit state
+  let state ← ApplyFullRounds_t4.circuit 76 (by omega) state
+  let state ← FullRound_t4.circuit (.replicate 88 0) M_t4 ⟨0, by omega⟩ state
+  return state[0]
+
+def Spec (input : Vector F 3) (output : F) : Prop :=
+  output = Specs.PoseidonOptimized.poseidon3Opt input
+
+set_option maxHeartbeats 4000000 in
+instance elaborated : ElaboratedCircuit F (fields 3) field main := by
+  elaborate_circuit_with {
+    output _ offset := varFromOffset field (offset + 4 + 48 + 16 + 448 + 48 + 3 + 3 + 3 + 3)
+  } using by
+    simp only [circuit_norm]
+
+set_option maxHeartbeats 8000000 in
+theorem soundness : Soundness F (Input := fields 3) (Output := field)
+    (elaborated := elaborated) main (fun _ => True) Spec := by
+  circuit_proof_start [InitialArk.circuit, ApplyFullRounds_t4.circuit, FullRound_t4.circuit,
+    ApplyPartialRoundsOpt_t4.circuit]
+  simp +arith only [circuit_norm, ApplyFullRounds_t4.Spec, FullRound_t4.Spec,
+    ApplyPartialRoundsOpt_t4.Spec, ApplyPartialRoundsOpt_t4.Assumptions,
+    Specs.PoseidonOptimized.fullRoundOpt_t4, ark_zero_t4_eq,
+    Specs.PoseidonOptimized.poseidon3Opt] at h_holds ⊢
+  suffices #v[env.get (i₀ + 576), env.get (i₀ + 577), env.get (i₀ + 578), env.get (i₀ + 579)] =
+    Specs.PoseidonOptimized.poseidon3Permutation input by simp [← this]
+  simp_all [Specs.PoseidonOptimized.poseidon3Permutation]
+
 end Poseidon3
 
 end Circomlib.Poseidon

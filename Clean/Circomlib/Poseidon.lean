@@ -596,6 +596,61 @@ def circuit (C : Vector ℕ 81) (M : Vector (Vector ℕ 3) 3) (offset : Fin 79) 
 
 end FullRound_t3
 
+/-
+----------------------------------------------------------------------------
+PARTIAL ROUND (t=3): SBOX on element 0 -> ARK on element 0 -> MixS (sparse)
+----------------------------------------------------------------------------
+57 partial rounds, constants C_t3[15..71], sparse matrices S_t3 (5 per round).
+-/
+namespace PartialRoundOpt_t3
+
+def main (round : Fin 57) (state : Vector (Expression F) 3) :
+    Circuit F (Vector (Expression F) 3) := do
+  let sbox0 ← Sigma.circuit state[0]
+  let a0 <== sbox0 + .const C_t3[15 + round.val]
+  let out0 <== .const S_t3[5*round.val] * a0
+             + .const S_t3[5*round.val + 1] * state[1]
+             + .const S_t3[5*round.val + 2] * state[2]
+  let out1 <== state[1] + a0 * .const S_t3[5*round.val + 3]
+  let out2 <== state[2] + a0 * .const S_t3[5*round.val + 4]
+  return #v[out0, out1, out2]
+
+def Spec (round : Fin 57) (input output : Vector F 3) : Prop :=
+  output = Specs.PoseidonOptimized.partialRoundOpt C_t3 S_t3 (15 + round.val)
+    round.val input round.isLt
+
+instance elaborated (round : Fin 57) : ElaboratedCircuit F (fields 3) (fields 3) (main round) := by
+  elaborate_circuit
+
+theorem soundness (round : Fin 57) :
+    Soundness F (Input := fields 3) (Output := fields 3) (main round) (fun _ => True) (Spec round) := by
+  circuit_proof_start [Sigma.circuit]
+  simp only [Specs.PoseidonOptimized.partialRoundOpt, Specs.Poseidon.sigma,
+    dif_pos (show 15 + round.val < 81 by omega), Specs.PoseidonOptimized.mixS_t3]
+  obtain ⟨h0, h1, h2, h3, h4⟩ := h_holds
+  have h_in0 : Expression.eval env input_var[0] = input[0] := by
+    simpa using congrArg (fun v => v[0]) h_input
+  have h_in1 : Expression.eval env input_var[1] = input[1] := by
+    simpa using congrArg (fun v => v[1]) h_input
+  have h_in2 : Expression.eval env input_var[2] = input[2] := by
+    simpa using congrArg (fun v => v[2]) h_input
+  rw [h2, h3, h4, h1, h0, h_in0, h_in1, h_in2]
+  simp +arith [show round.val * 5 = 5 * round.val by ring]
+
+theorem completeness (round : Fin 57) :
+    Completeness F (Input := fields 3) (Output := fields 3) (main round) (fun _ => True) := by
+  circuit_proof_start [Sigma.circuit]
+  simp_all
+
+def circuit (round : Fin 57) : FormalCircuit F (fields 3) (fields 3) where
+  main := main round
+  elaborated := elaborated round
+  Spec := Spec round
+  soundness := soundness round
+  completeness := completeness round
+
+end PartialRoundOpt_t3
+
 end Poseidon2
 
 end Circomlib.Poseidon

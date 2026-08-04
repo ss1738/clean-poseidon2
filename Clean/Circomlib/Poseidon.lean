@@ -903,6 +903,68 @@ def circuit : FormalCircuit F (fields 3) (fields 4) where
 
 end InitialArk
 
+
+namespace FullRound_t4
+
+def main (C : Vector ℕ 88) (M : Vector (Vector ℕ 4) 4) (offset : Fin 85)
+    (state : Vector (Expression F) 4) : Circuit F (Vector (Expression F) 4) := do
+  let s0 ← Sigma.circuit state[0]
+  let s1 ← Sigma.circuit state[1]
+  let s2 ← Sigma.circuit state[2]
+  let s3 ← Sigma.circuit state[3]
+  let a0 := s0 + .const C[offset.val]
+  let a1 := s1 + .const C[offset.val + 1]
+  let a2 := s2 + .const C[offset.val + 2]
+  let a3 := s3 + .const C[offset.val + 3]
+  let out0 <== .const M[0][0] * a0 + .const M[1][0] * a1 + .const M[2][0] * a2 + .const M[3][0] * a3
+  let out1 <== .const M[0][1] * a0 + .const M[1][1] * a1 + .const M[2][1] * a2 + .const M[3][1] * a3
+  let out2 <== .const M[0][2] * a0 + .const M[1][2] * a1 + .const M[2][2] * a2 + .const M[3][2] * a3
+  let out3 <== .const M[0][3] * a0 + .const M[1][3] * a1 + .const M[2][3] * a2 + .const M[3][3] * a3
+  return #v[out0, out1, out2, out3]
+
+def Spec (C : Vector ℕ 88) (M : Vector (Vector ℕ 4) 4) (offset : Fin 85)
+    (input output : Vector F 4) : Prop :=
+  output = Specs.PoseidonOptimized.fullRoundOpt_t4 C M offset.val input
+
+instance elaborated (C : Vector ℕ 88) (M : Vector (Vector ℕ 4) 4) (offset : Fin 85) :
+    ElaboratedCircuit F (fields 4) (fields 4) (main C M offset) := by
+  elaborate_circuit
+
+theorem soundness (C : Vector ℕ 88) (M : Vector (Vector ℕ 4) 4) (offset : Fin 85) :
+    Soundness F (Input := fields 4) (Output := fields 4) (main C M offset)
+      (fun _ => True) (Spec C M offset) := by
+  circuit_proof_start [Sigma.circuit]
+  simp only [Specs.PoseidonOptimized.fullRoundOpt_t4, Specs.Poseidon.sboxFull]
+  rw [ark_t4_eq C offset.val (by omega)]
+  simp only [Specs.Poseidon.sigma, mix_matrix_t4_eq, Vector.getElem_map]
+  obtain ⟨h0, h1, h2, h3, h4, h5, h6, h7⟩ := h_holds
+  have h_in0 : Expression.eval env input_var[0] = input[0] := by
+    simpa using congrArg (fun v => v[0]) h_input
+  have h_in1 : Expression.eval env input_var[1] = input[1] := by
+    simpa using congrArg (fun v => v[1]) h_input
+  have h_in2 : Expression.eval env input_var[2] = input[2] := by
+    simpa using congrArg (fun v => v[2]) h_input
+  have h_in3 : Expression.eval env input_var[3] = input[3] := by
+    simpa using congrArg (fun v => v[3]) h_input
+  rw [h4, h5, h6, h7, h0, h1, h2, h3]
+  rw [h_in0, h_in1, h_in2, h_in3]
+  rfl
+
+theorem completeness (C : Vector ℕ 88) (M : Vector (Vector ℕ 4) 4) (offset : Fin 85) :
+    Completeness F (Input := fields 4) (Output := fields 4) (main C M offset) (fun _ => True) := by
+  circuit_proof_start [Sigma.circuit]
+  simp_all
+
+def circuit (C : Vector ℕ 88) (M : Vector (Vector ℕ 4) 4) (offset : Fin 85) :
+    FormalCircuit F (fields 4) (fields 4) where
+  main := main C M offset
+  elaborated := elaborated C M offset
+  Spec := Spec C M offset
+  soundness := soundness C M offset
+  completeness := completeness C M offset
+
+end FullRound_t4
+
 end Poseidon3
 
 end Circomlib.Poseidon

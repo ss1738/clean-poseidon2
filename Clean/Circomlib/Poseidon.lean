@@ -786,6 +786,35 @@ def main (input : Vector (Expression F) 2) : Circuit F (Expression F) := do
 def Spec (input : Vector F 2) (output : F) : Prop :=
   output = Specs.PoseidonOptimized.poseidon2Opt input
 
+instance elaborated : ElaboratedCircuit F (fields 2) field main := by
+  elaborate_circuit_with {
+    output _ offset := varFromOffset field (offset + 3 + 36 + 12 + 399 + 36 + 3 + 3 + 3)
+  } using by
+    simp only [circuit_norm]
+
+/-
+TOP-LEVEL SOUNDNESS — remaining work.
+
+All six stages below are individually proved sound (InitialArk, ApplyFullRounds_t3,
+FullRound_t3 with P_t3, ApplyPartialRoundsOpt_t3, ApplyFullRounds_t3, FullRound_t3 with
+zero constants). What remains is composing them against `poseidon2Opt`.
+
+Witness layout (verified against the elaborated instance above, which typechecks):
+  InitialArk               3          -> i₀ + 3
+  ApplyFullRounds_t3 x3    36  (3x12) -> i₀ + 39
+  FullRound_t3 (P_t3)      12         -> i₀ + 51
+  ApplyPartialRoundsOpt_t3 399 (57x7) -> i₀ + 450
+  ApplyFullRounds_t3 x3    36         -> i₀ + 486
+  final FullRound_t3: three S-boxes   -> i₀ + 495, outputs at 495/496/497
+
+The t=2 proof closes via a `suffices` naming `poseidon1Permutation`. There is no
+`poseidon2Permutation` in Specs.PoseidonOptimized (poseidon2Opt inlines the permutation),
+so the t=3 proof needs either (a) a `poseidon2Permutation` definition added to the spec
+file plus a lemma `poseidon2Opt inputs = (poseidon2Permutation inputs)[0]`, mirroring the
+t=2 structure, or (b) a direct composition unfolding `poseidon2Opt` in place. Option (a)
+matches the existing architecture and is the recommended route.
+-/
+
 end Poseidon2
 
 end Circomlib.Poseidon

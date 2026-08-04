@@ -735,6 +735,44 @@ def circuit : FormalCircuit F (fields 3) (fields 3) where
 
 end ApplyPartialRoundsOpt_t3
 
+namespace ApplyFullRounds_t3
+
+def main (offset : ℕ) (h : offset + 6 < 79) (state : Vector (Expression F) 3) :
+    Circuit F (Vector (Expression F) 3) :=
+  Circuit.foldl (.ofFn fun (i : Fin 3) => ⟨offset + 3*i.val, by omega⟩) state
+    (fun st offset => FullRound_t3.circuit C_t3 M_t3 offset st)
+    (by simp only [circuit_norm, FullRound_t3.circuit, FullRound_t3.elaborated])
+
+def Spec (offset : ℕ) (input output : Vector F 3) : Prop :=
+  output = Specs.PoseidonOptimized.fullRoundsOpt C_t3 M_t3 3 offset input
+
+instance elaborated (offset : ℕ) (h : offset + 6 < 79) :
+    ElaboratedCircuit F (fields 3) (fields 3) (main offset h) := by
+  elaborate_circuit
+
+theorem soundness (offset : ℕ) (h : offset + 6 < 79) :
+    Soundness F (Input := fields 3) (Output := fields 3) (main offset h)
+      (fun _ => True) (Spec offset) := by
+  circuit_proof_start [FullRound_t3.circuit, FullRound_t3.elaborated, FullRound_t3.Spec]
+  obtain ⟨h0, h_step⟩ := h_holds
+  have h1 := h_step 0 (by omega)
+  have h2 := h_step 1 (by omega)
+  simp_all [Specs.PoseidonOptimized.fullRoundsOpt]
+
+theorem completeness (offset : ℕ) (h : offset + 6 < 79) :
+    Completeness F (Input := fields 3) (Output := fields 3) (main offset h) (fun _ => True) := by
+  circuit_proof_start [FullRound_t3.circuit]
+
+def circuit (offset : ℕ) (h : offset + 6 < 79) :
+    FormalCircuit F (fields 3) (fields 3) where
+  main := main offset h
+  elaborated := elaborated offset h
+  Spec := Spec offset
+  soundness := soundness offset h
+  completeness := completeness offset h
+
+end ApplyFullRounds_t3
+
 end Poseidon2
 
 end Circomlib.Poseidon

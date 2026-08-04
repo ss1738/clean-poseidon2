@@ -965,6 +965,83 @@ def circuit (C : Vector ℕ 88) (M : Vector (Vector ℕ 4) 4) (offset : Fin 85) 
 
 end FullRound_t4
 
+
+namespace PartialRoundOpt_t4
+
+def main (round : Fin 56) (state : Vector (Expression F) 4) :
+    Circuit F (Vector (Expression F) 4) := do
+  let sbox0 ← Sigma.circuit state[0]
+  let a0 <== sbox0 + .const C_t4[20 + round.val]
+  let out0 <== .const S_t4[7*round.val] * a0
+             + .const S_t4[7*round.val + 1] * state[1]
+             + .const S_t4[7*round.val + 2] * state[2]
+             + .const S_t4[7*round.val + 3] * state[3]
+  let out1 <== state[1] + a0 * .const S_t4[7*round.val + 4]
+  let out2 <== state[2] + a0 * .const S_t4[7*round.val + 5]
+  let out3 <== state[3] + a0 * .const S_t4[7*round.val + 6]
+  return #v[out0, out1, out2, out3]
+
+def Spec (round : Fin 56) (input output : Vector F 4) : Prop :=
+  output = Specs.PoseidonOptimized.partialRoundOpt_t4 C_t4 S_t4 (20 + round.val)
+    round.val input round.isLt
+
+instance elaborated (round : Fin 56) : ElaboratedCircuit F (fields 4) (fields 4) (main round) := by
+  elaborate_circuit
+
+theorem soundness (round : Fin 56) :
+    Soundness F (Input := fields 4) (Output := fields 4) (main round) (fun _ => True) (Spec round) := by
+  circuit_proof_start [Sigma.circuit]
+  simp only [Specs.PoseidonOptimized.partialRoundOpt_t4, Specs.Poseidon.sigma,
+    dif_pos (show 20 + round.val < 88 by omega), Specs.PoseidonOptimized.mixS_t4]
+  obtain ⟨h0, h1, h2, h3, h4, h5⟩ := h_holds
+  have h_in0 : Expression.eval env input_var[0] = input[0] := by
+    simpa using congrArg (fun v => v[0]) h_input
+  have h_in1 : Expression.eval env input_var[1] = input[1] := by
+    simpa using congrArg (fun v => v[1]) h_input
+  have h_in2 : Expression.eval env input_var[2] = input[2] := by
+    simpa using congrArg (fun v => v[2]) h_input
+  have h_in3 : Expression.eval env input_var[3] = input[3] := by
+    simpa using congrArg (fun v => v[3]) h_input
+  rw [h2, h3, h4, h5, h1, h0, h_in0, h_in1, h_in2, h_in3]
+  simp +arith [show round.val * 7 = 7 * round.val by ring]
+
+theorem completeness (round : Fin 56) :
+    Completeness F (Input := fields 4) (Output := fields 4) (main round) (fun _ => True) := by
+  circuit_proof_start [Sigma.circuit]
+  simp_all
+
+def circuit (round : Fin 56) : FormalCircuit F (fields 4) (fields 4) where
+  main := main round
+  elaborated := elaborated round
+  Spec := Spec round
+  soundness := soundness round
+  completeness := completeness round
+
+end PartialRoundOpt_t4
+
+/-- Induction lemma for the t=4 partial-round chain. -/
+private lemma partialRoundsOpt_t4_induction
+    (nRounds cOffset sRound : ℕ)
+    (hr : sRound + nRounds ≤ 56)
+    (states : ℕ → Vector F 4)
+    (h_round : ∀ (i : ℕ) (_ : i < nRounds),
+        states (i + 1) = Specs.PoseidonOptimized.partialRoundOpt_t4 C_t4 S_t4
+          (cOffset + i) (sRound + i) (states i) (by omega)) :
+    states nRounds = Specs.PoseidonOptimized.partialRoundsOpt_t4 C_t4 S_t4
+      nRounds cOffset sRound (states 0) hr := by
+  induction nRounds generalizing cOffset sRound states with
+  | zero =>
+      simp [Specs.PoseidonOptimized.partialRoundsOpt_t4]
+  | succ k ih =>
+      simp only [Specs.PoseidonOptimized.partialRoundsOpt_t4]
+      have h0 := h_round 0 (by omega)
+      simp only [Nat.add_zero] at h0
+      rw [← h0]
+      apply ih (cOffset + 1) (sRound + 1) (by omega) (fun j => states (j + 1))
+      intro i hi
+      have hi' := h_round (i + 1) (by omega)
+      convert hi' using 2 <;> omega
+
 end Poseidon3
 
 end Circomlib.Poseidon

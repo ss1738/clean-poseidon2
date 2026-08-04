@@ -1042,6 +1042,109 @@ private lemma partialRoundsOpt_t4_induction
       have hi' := h_round (i + 1) (by omega)
       convert hi' using 2 <;> omega
 
+
+namespace ApplyPartialRoundsOpt_t4
+
+set_option maxHeartbeats 4000000
+
+def main (state : Vector (Expression F) 4)
+    : Circuit F (Vector (Expression F) 4) :=
+  Circuit.foldl (.finRange 56) state
+    (fun st round => PartialRoundOpt_t4.circuit round st)
+    (by simp only [circuit_norm, PartialRoundOpt_t4.circuit,
+      PartialRoundOpt_t4.elaborated])
+    ⟨ 8, by simp only [circuit_norm, PartialRoundOpt_t4.circuit] ⟩
+
+def Spec (input output : Vector F 4) : Prop :=
+  output = Specs.PoseidonOptimized.partialRoundsOpt_t4 C_t4 S_t4 56 20 0 input (by omega)
+
+def Assumptions (_ : Vector F 4) : Prop := True
+
+/-- Each t=4 partial round allocates 8 witnesses (3 S-box, 1 ARK, 4 MixS outputs);
+round outputs sit at offsets +4..+7. -/
+def envState (env : Environment F) (input : Vector F 4)
+    (n k : ℕ) : Vector F 4 :=
+  if k = 0 then input
+  else #v[env.get (n + (k - 1) * 8 + 4), env.get (n + (k - 1) * 8 + 5),
+          env.get (n + (k - 1) * 8 + 6), env.get (n + (k - 1) * 8 + 7)]
+
+instance elaborated : ElaboratedCircuit F (fields 4) (fields 4) main := by
+  elaborate_circuit
+
+theorem soundness : Soundness F (Input := fields 4) (Output := fields 4) main Assumptions Spec := by
+  circuit_proof_start [PartialRoundOpt_t4.circuit, PartialRoundOpt_t4.elaborated,
+    PartialRoundOpt_t4.Spec]
+  obtain ⟨h0, h_step⟩ := h_holds
+  have h_round : ∀ (k : ℕ) (hk : k < 56),
+      envState env input i₀ (k + 1) =
+        Specs.PoseidonOptimized.partialRoundOpt_t4 C_t4 S_t4 (20 + k) k
+          (envState env input i₀ k) hk := by
+    intro k hk
+    rcases k with _ | j
+    · exact Vector.toArray_inj.mp (by simpa [envState] using h0)
+    · have hj := h_step j (by omega)
+      exact Vector.toArray_inj.mp (by simpa +arith [envState] using hj)
+  have h_final := partialRoundsOpt_t4_induction 56 20 0 (by omega)
+    (fun k => envState env input i₀ k)
+    (by
+      intro i hi
+      simp only [zero_add]
+      exact h_round i hi)
+  exact congr_arg Vector.toArray h_final
+
+theorem completeness : Completeness F (Input := fields 4) (Output := fields 4) main Assumptions := by
+  circuit_proof_start [PartialRoundOpt_t4.circuit]
+
+def circuit : FormalCircuit F (fields 4) (fields 4) where
+  main
+  elaborated
+  Assumptions
+  Spec
+  soundness
+  completeness := by simp [completeness]
+
+end ApplyPartialRoundsOpt_t4
+
+namespace ApplyFullRounds_t4
+
+set_option maxHeartbeats 4000000
+
+def main (offset : ℕ) (h : offset + 8 < 85) (state : Vector (Expression F) 4) :
+    Circuit F (Vector (Expression F) 4) :=
+  Circuit.foldl (.ofFn fun (i : Fin 3) => ⟨offset + 4*i.val, by omega⟩) state
+    (fun st offset => FullRound_t4.circuit C_t4 M_t4 offset st)
+    (by simp only [circuit_norm, FullRound_t4.circuit, FullRound_t4.elaborated])
+
+def Spec (offset : ℕ) (input output : Vector F 4) : Prop :=
+  output = Specs.PoseidonOptimized.fullRoundsOpt_t4 C_t4 M_t4 3 offset input
+
+instance elaborated (offset : ℕ) (h : offset + 8 < 85) :
+    ElaboratedCircuit F (fields 4) (fields 4) (main offset h) := by
+  elaborate_circuit
+
+theorem soundness (offset : ℕ) (h : offset + 8 < 85) :
+    Soundness F (Input := fields 4) (Output := fields 4) (main offset h)
+      (fun _ => True) (Spec offset) := by
+  circuit_proof_start [FullRound_t4.circuit, FullRound_t4.elaborated, FullRound_t4.Spec]
+  obtain ⟨h0, h_step⟩ := h_holds
+  have h1 := h_step 0 (by omega)
+  have h2 := h_step 1 (by omega)
+  simp_all [Specs.PoseidonOptimized.fullRoundsOpt_t4]
+
+theorem completeness (offset : ℕ) (h : offset + 8 < 85) :
+    Completeness F (Input := fields 4) (Output := fields 4) (main offset h) (fun _ => True) := by
+  circuit_proof_start [FullRound_t4.circuit]
+
+def circuit (offset : ℕ) (h : offset + 8 < 85) :
+    FormalCircuit F (fields 4) (fields 4) where
+  main := main offset h
+  elaborated := elaborated offset h
+  Spec := Spec offset
+  soundness := soundness offset h
+  completeness := completeness offset h
+
+end ApplyFullRounds_t4
+
 end Poseidon3
 
 end Circomlib.Poseidon

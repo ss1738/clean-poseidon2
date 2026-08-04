@@ -773,6 +773,19 @@ def circuit (offset : ℕ) (h : offset + 6 < 79) :
 
 end ApplyFullRounds_t3
 
+/-- Top-level circomlib `Poseidon(2)`: 2 field inputs, 1 field output. -/
+def main (input : Vector (Expression F) 2) : Circuit F (Expression F) := do
+  let state ← InitialArk.circuit input
+  let state ← ApplyFullRounds_t3.circuit 3 (by omega) state
+  let state ← FullRound_t3.circuit C_t3 P_t3 ⟨12, by omega⟩ state
+  let state ← ApplyPartialRoundsOpt_t3.circuit state
+  let state ← ApplyFullRounds_t3.circuit 72 (by omega) state
+  let state ← FullRound_t3.circuit (.replicate 81 0) M_t3 ⟨0, by omega⟩ state
+  return state[0]
+
+def Spec (input : Vector F 2) (output : F) : Prop :=
+  output = Specs.PoseidonOptimized.poseidon2Opt input
+
 end Poseidon2
 
 end Circomlib.Poseidon

@@ -15,8 +15,8 @@ https://github.com/iden3/circomlib/blob/master/circuits/poseidon.circom
 
 namespace Circomlib.Poseidon
 
-open Specs.Poseidon (F BN254_PRIME C_t2 M_t2)
-open Specs.PoseidonOptimized (P_t2 S_t2)
+open Specs.Poseidon (F BN254_PRIME C_t2 M_t2 C_t3 M_t3)
+open Specs.PoseidonOptimized (P_t2 S_t2 P_t3 S_t3)
 
 -- BN254 prime facts (BN254_PRIME is a well-known prime, proofs omitted for performance)
 instance : Fact (Nat.Prime BN254_PRIME) := ⟨by sorry⟩
@@ -475,5 +475,66 @@ def circuit : FormalCircuit F field field where
   completeness
 
 end Poseidon1
+
+
+/-
+============================================================================
+POSEIDON2 (2 inputs, t=3)
+============================================================================
+circomlib's Poseidon(2). State width 3, nRoundsF = 8, nRoundsP = 57.
+Mirrors the Poseidon1 (t=2) development above one arity up.
+-/
+namespace Poseidon2
+
+private lemma ark_t3_eq (C : Vector ℕ 81) (offset : ℕ) (ho : offset + 2 < 81) (state : Vector F 3) :
+    Specs.Poseidon.ark C offset state =
+      #v[state[0] + C[offset], state[1] + C[offset + 1], state[2] + C[offset + 2]] := by
+  simp [Specs.Poseidon.ark, ho, show offset + 1 < 81 by omega, show offset < 81 by omega,
+    Array.ofFn_succ]
+
+private lemma ark_zero_t3_eq (state : Vector F 3) :
+    Specs.Poseidon.ark (.replicate 81 0) 0 state = state := by
+  rw [ark_t3_eq _ _ (by norm_num)]; simp; grind
+
+private lemma mix_matrix_t3_eq (M : Vector (Vector ℕ 3) 3) (state : Vector F 3) :
+    Specs.Poseidon.mix M state =
+      #v[M[0][0] * state[0] + M[1][0] * state[1] + M[2][0] * state[2],
+         M[0][1] * state[0] + M[1][1] * state[1] + M[2][1] * state[2],
+         M[0][2] * state[0] + M[1][2] * state[1] + M[2][2] * state[2]] := by
+  simp [Specs.Poseidon.mix, List.range_succ, Array.ofFn_succ]
+
+/-
+----------------------------------------------------------------------------
+INITIAL ARK (t=3): state [0, in0, in1] + C[0..2]
+----------------------------------------------------------------------------
+-/
+namespace InitialArk
+
+def circuit : FormalCircuit F (fields 2) (fields 3) where
+  main input := do
+    let state := #v[(.const 0 : Expression F), input[0], input[1]]
+    let out0 <== state[0] + Expression.const (C_t3[0] : F)
+    let out1 <== state[1] + Expression.const (C_t3[1] : F)
+    let out2 <== state[2] + Expression.const (C_t3[2] : F)
+    return #v[out0, out1, out2]
+
+  Spec (input : Vector F 2) (output : Vector F 3) :=
+    output = Specs.Poseidon.ark C_t3 0 #v[0, input[0], input[1]]
+
+  soundness := by
+    circuit_proof_start
+    rw [ark_t3_eq C_t3 0 (by omega)]
+    obtain ⟨h0, h1, h2⟩ := h_holds
+    have h_in0 : Expression.eval env input_var[0] = input[0] := by
+      simpa using congrArg (fun v => v[0]) h_input
+    have h_in1 : Expression.eval env input_var[1] = input[1] := by
+      simpa using congrArg (fun v => v[1]) h_input
+    simp_all
+  completeness := by
+    circuit_proof_all
+
+end InitialArk
+
+end Poseidon2
 
 end Circomlib.Poseidon

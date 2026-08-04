@@ -535,6 +535,67 @@ def circuit : FormalCircuit F (fields 2) (fields 3) where
 
 end InitialArk
 
+/-
+----------------------------------------------------------------------------
+FULL ROUND (t=3): SBOX on all 3 -> ARK -> MIX(M)
+----------------------------------------------------------------------------
+-/
+namespace FullRound_t3
+
+def main (C : Vector ℕ 81) (M : Vector (Vector ℕ 3) 3) (offset : Fin 79)
+    (state : Vector (Expression F) 3) : Circuit F (Vector (Expression F) 3) := do
+  let s0 ← Sigma.circuit state[0]
+  let s1 ← Sigma.circuit state[1]
+  let s2 ← Sigma.circuit state[2]
+  let a0 := s0 + .const C[offset.val]
+  let a1 := s1 + .const C[offset.val + 1]
+  let a2 := s2 + .const C[offset.val + 2]
+  let out0 <== .const M[0][0] * a0 + .const M[1][0] * a1 + .const M[2][0] * a2
+  let out1 <== .const M[0][1] * a0 + .const M[1][1] * a1 + .const M[2][1] * a2
+  let out2 <== .const M[0][2] * a0 + .const M[1][2] * a1 + .const M[2][2] * a2
+  return #v[out0, out1, out2]
+
+def Spec (C : Vector ℕ 81) (M : Vector (Vector ℕ 3) 3) (offset : Fin 79)
+    (input output : Vector F 3) : Prop :=
+  output = Specs.PoseidonOptimized.fullRoundOpt C M offset.val input
+
+instance elaborated (C : Vector ℕ 81) (M : Vector (Vector ℕ 3) 3) (offset : Fin 79) :
+    ElaboratedCircuit F (fields 3) (fields 3) (main C M offset) := by
+  elaborate_circuit
+
+theorem soundness (C : Vector ℕ 81) (M : Vector (Vector ℕ 3) 3) (offset : Fin 79) :
+    Soundness F (Input := fields 3) (Output := fields 3) (main C M offset)
+      (fun _ => True) (Spec C M offset) := by
+  circuit_proof_start [Sigma.circuit]
+  simp only [Specs.PoseidonOptimized.fullRoundOpt, Specs.Poseidon.sboxFull]
+  rw [ark_t3_eq C offset.val (by omega)]
+  simp only [Specs.Poseidon.sigma, mix_matrix_t3_eq, Vector.getElem_map]
+  obtain ⟨h0, h1, h2, h3, h4, h5⟩ := h_holds
+  have h_in0 : Expression.eval env input_var[0] = input[0] := by
+    simpa using congrArg (fun v => v[0]) h_input
+  have h_in1 : Expression.eval env input_var[1] = input[1] := by
+    simpa using congrArg (fun v => v[1]) h_input
+  have h_in2 : Expression.eval env input_var[2] = input[2] := by
+    simpa using congrArg (fun v => v[2]) h_input
+  rw [h3, h4, h5, h0, h1, h2]
+  rw [h_in0, h_in1, h_in2]
+  rfl
+
+theorem completeness (C : Vector ℕ 81) (M : Vector (Vector ℕ 3) 3) (offset : Fin 79) :
+    Completeness F (Input := fields 3) (Output := fields 3) (main C M offset) (fun _ => True) := by
+  circuit_proof_start [Sigma.circuit]
+  simp_all
+
+def circuit (C : Vector ℕ 81) (M : Vector (Vector ℕ 3) 3) (offset : Fin 79) :
+    FormalCircuit F (fields 3) (fields 3) where
+  main := main C M offset
+  elaborated := elaborated C M offset
+  Spec := Spec C M offset
+  soundness := soundness C M offset
+  completeness := completeness C M offset
+
+end FullRound_t3
+
 end Poseidon2
 
 end Circomlib.Poseidon

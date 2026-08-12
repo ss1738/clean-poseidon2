@@ -1,5 +1,7 @@
 # Machine-checked soundness for circomlib Poseidon(2)
 
+Built on the [Verified-zkEVM/clean](https://github.com/Verified-zkEVM/clean) framework. This repo contains the machine-checked soundness proof for the Poseidon(2) component; the framework itself is upstream.
+
 A Lean 4 proof that the circomlib `Poseidon(2)` circuit is **sound and complete** against its
 reference specification, built in the [cLean](https://github.com/Verified-zkEVM/clean)
 framework. The proof carries no Poseidon-specific axioms.
